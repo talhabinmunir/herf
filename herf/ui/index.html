@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Herf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7F1EA; --cream2:#F1E9DF; --ink:#1E1D1B; --ink-soft:#6E6A64;
+    --pink:#F8D9D9; --peach:#FAE7C8; --lav:#DFD9F8; --mint:#D9F2E4;
+    --white:#FFFFFF; --gold:#D9A441; --r-lg:22px; --r-md:16px; --r-pill:999px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Poppins','Segoe UI Variable','Segoe UI',sans-serif;
+    background:var(--cream); color:var(--ink); height:100vh; overflow:hidden;
+    display:grid; grid-template-columns:84px 1fr 340px;
+  }
+
+  /* ---------- sidebar ---------- */
+  aside{
+    background:var(--cream2); display:flex; flex-direction:column;
+    align-items:center; padding:22px 0; gap:14px;
+  }
+  .logo{width:44px;height:44px;border-radius:14px;background:#1B2733;
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px}
+  .logo svg{width:26px;height:26px}
+  .nav-btn{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;
+    background:transparent;color:var(--ink);display:flex;align-items:center;
+    justify-content:center;transition:background .15s}
+  .nav-btn:hover{background:#E9E0D4}
+  .nav-btn.active{background:var(--ink);color:#fff}
+  .nav-btn svg{width:20px;height:20px}
+  .nav-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  aside .spacer{flex:1}
+
+  /* ---------- main ---------- */
+  main{padding:34px 36px 24px;overflow-y:auto}
+  h1{font-size:34px;font-weight:600;line-height:1.2;letter-spacing:-.5px;max-width:520px}
+  .sub{color:var(--ink-soft);font-size:13.5px;margin-top:6px}
+
+  .pills{display:flex;gap:10px;margin:24px 0 20px;flex-wrap:wrap}
+  .pill{border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;
+    padding:10px 18px;border-radius:var(--r-pill);background:var(--white);color:var(--ink);
+    display:flex;align-items:center;gap:8px;box-shadow:0 1px 2px rgba(30,29,27,.05)}
+  .pill.active{background:var(--ink);color:#fff}
+  .pill:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  .panes{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{border-radius:var(--r-lg);padding:20px}
+  .card h3{font-size:12px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.06em;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .badge{background:var(--white);border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;padding:3px 10px;margin-left:auto}
+  .src{background:var(--peach)}
+  .out{background:var(--mint)}
+  textarea{width:100%;height:300px;border:none;resize:none;background:var(--white);
+    border-radius:var(--r-md);padding:14px;font-family:Consolas,monospace;font-size:12px;
+    color:var(--ink)}
+  textarea:focus{outline:2px solid var(--ink)}
+  .result-box{height:300px;overflow-y:auto;background:var(--white);border-radius:var(--r-md);
+    padding:16px 18px;direction:rtl;text-align:right;
+    font-family:'Jameel Noori Nastaleeq','Urdu Typesetting','Noto Nastaliq Urdu',serif;
+    font-size:19px;line-height:2.1}
+  .result-box.empty{display:flex;align-items:center;justify-content:center;
+    color:var(--ink-soft);font-family:inherit;font-size:13px;direction:ltr}
+
+  .queue{margin-top:22px}
+  .queue h2{font-size:15px;font-weight:600;margin-bottom:12px}
+  .queue-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .qcard{border-radius:var(--r-lg);padding:16px 18px;cursor:pointer;border:none;
+    text-align:left;font-family:inherit;transition:transform .12s}
+  .qcard:hover{transform:translateY(-2px)}
+  .qcard .fname{font-weight:600;font-size:14px;margin:8px 0 4px;word-break:break-all}
+  .qcard .meta{font-size:11.5px;color:var(--ink-soft)}
+  .qcard .top{display:flex;align-items:center}
+  .qcard.c0{background:var(--pink)} .qcard.c1{background:var(--peach)}
+  .qcard.c2{background:var(--lav)} .qcard.c3{background:var(--mint)}
+
+  /* ---------- right panel ---------- */
+  .side{background:var(--cream);border-left:1px solid #EAE1D5;
+    padding:30px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+  .wcard{background:var(--white);border-radius:var(--r-lg);padding:18px}
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+  .stat-big{font-size:26px;font-weight:700}
+  .stat-lbl{font-size:12px;color:var(--ink-soft)}
+  .okchip{background:var(--mint);border-radius:var(--r-pill);font-size:11px;
+    font-weight:600;padding:4px 12px;display:inline-block}
+  .warnchip{background:var(--pink)}
+
+  .rep-item{border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px}
+  .rep-item .code{font-family:Consolas,monospace;font-size:12px;font-weight:700}
+  .rep-item .cnt{float:right;background:var(--white);border-radius:var(--r-pill);
+    font-size:10.5px;font-weight:600;padding:2px 9px}
+  .rep-item .ctx{font-size:12px;color:var(--ink-soft);margin-top:6px;direction:rtl;
+    text-align:right;font-family:'Jameel Noori Nastaleeq','Urdu Typesetting',serif;line-height:1.9}
+  .rep-item .fixrow{display:flex;gap:6px;margin-top:8px}
+  .rep-item input{flex:1;border:none;border-radius:10px;padding:7px 10px;
+    font-family:inherit;font-size:12px;background:var(--white)}
+  .rep-item input:focus{outline:2px solid var(--ink)}
+  .rep-item .apply{border:none;background:var(--ink);color:#fff;border-radius:10px;
+    padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit}
+  .rep-item:nth-child(odd){background:var(--pink)}
+  .rep-item:nth-child(even){background:var(--lav)}
+
+  .exports{display:flex;flex-direction:column;gap:10px}
+  .btn{border:none;cursor:pointer;font-family:inherit;font-weight:600;font-size:13.5px;
+    padding:13px;border-radius:var(--r-pill);transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-light{background:var(--white);color:var(--ink);box-shadow:0 1px 2px rgba(30,29,27,.07)}
+  .btn:disabled{opacity:.35;cursor:default}
+
+  .settings label{display:flex;align-items:center;justify-content:space-between;
+    font-size:13px;padding:9px 0;gap:10px}
+  select{font-family:inherit;font-size:12px;border:none;background:var(--cream);
+    border-radius:10px;padding:7px 10px;max-width:170px}
+  input[type=checkbox]{width:17px;height:17px;accent-color:var(--ink)}
+
+  .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .mini{border:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;
+    padding:9px 16px;border-radius:var(--r-pill);background:var(--ink);color:#fff}
+  .mini:disabled{opacity:.35;cursor:default}
+  .mini.ghost{background:var(--white);color:var(--ink);box-shadow:0 1px 2px rgba(30,29,27,.07)}
+  .q-item{border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px;background:var(--mint)}
+  .q-item.partial{background:var(--peach)}
+  .q-item .ref{font-size:11.5px;font-weight:700}
+  .q-item .sim{float:right;background:var(--white);border-radius:var(--r-pill);
+    font-size:10.5px;font-weight:600;padding:2px 9px}
+  .q-item .ar{direction:rtl;text-align:right;font-size:15px;line-height:2;
+    font-family:'Jameel Noori Nastaleeq','Urdu Typesetting',serif;margin-top:5px}
+  .q-item .lbl{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:6px}
+  .q-item .qapply{border:none;background:var(--ink);color:#fff;border-radius:10px;
+    padding:7px 14px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:8px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:11px 22px;border-radius:var(--r-pill);
+    font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<aside>
+  <div class="logo" aria-hidden="true">
+    <svg viewBox="0 0 512 512"><path d="M300 130 C350 110,400 120,415 165 C425 195,405 215,375 210" fill="none" stroke="#D9A441" stroke-width="24" stroke-linecap="round"/><circle cx="378" cy="150" r="12" fill="#D9A441"/><rect x="150" y="170" width="44" height="200" rx="22" fill="#F4EFE6"/><rect x="320" y="170" width="44" height="200" rx="22" fill="#F4EFE6"/><rect x="150" y="253" width="214" height="36" rx="18" fill="#F4EFE6"/></svg>
+  </div>
+  <button class="nav-btn active" title="Convert" aria-label="Convert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h11M11 3l4 4-4 4M20 17H9M13 13l-4 4 4 4"/></svg>
+  </button>
+  <div class="spacer"></div>
+  <button class="nav-btn" title="About" aria-label="About" onclick="toast('Herf · local InPage to Unicode conversion · nothing is uploaded')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+  </button>
+</aside>
+
+<main>
+  <h1>Your InPage text, readable everywhere.</h1>
+  <p class="sub">Open .inp files directly, or paste exported text. Herf converts locally — nothing is uploaded.</p>
+
+  <div class="pills" role="tablist">
+    <button class="pill active" id="tabPaste" onclick="setMode('paste')">✦ Paste text</button>
+    <button class="pill" id="tabFiles" onclick="openFiles()">🗂 Open files</button>
+    <button class="pill" id="tabFolder" onclick="openFolder()">📁 Whole folder</button>
+  </div>
+
+  <div class="panes">
+    <section class="card src">
+      <h3>Source <span class="badge" id="srcBadge">InPage export</span></h3>
+      <textarea id="srcInput" placeholder="Paste garbled InPage text here — or use Open files for .inp…" spellcheck="false"></textarea>
+    </section>
+    <section class="card out">
+      <h3>Unicode result <span class="badge" id="outBadge">–</span></h3>
+      <div class="result-box empty" id="resultBox">Converted text appears here</div>
+      <div class="actions">
+        <button class="mini" id="btnSpell" disabled onclick="runSpelling()">Fix spelling</button>
+        <button class="mini" id="btnQuran" disabled onclick="runQuran()">Check Quran verses</button>
+        <button class="mini ghost" id="btnClear" onclick="clearAll()">Clear</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="queue" id="queueWrap" hidden>
+    <h2>Files</h2>
+    <div class="queue-grid" id="queueGrid"></div>
+  </div>
+</main>
+
+<div class="side">
+  <div class="wcard">
+    <div class="stat-row"><span class="stat-big" id="statChars">0</span><span class="stat-lbl">characters</span></div>
+    <div class="stat-row"><span class="stat-big" id="statUnmapped">0</span><span class="stat-lbl">unmapped</span></div>
+    <span class="okchip" id="statusChip">Ready</span>
+  </div>
+
+  <div class="wcard">
+    <h3 style="font-size:13px;font-weight:600;margin-bottom:10px">Unmapped codes</h3>
+    <p class="stat-lbl" id="repEmpty" style="font-size:12px">Nothing flagged. Codes the mapping table does not know will be listed here — never replaced with a guess.</p>
+    <div id="repList"></div>
+  </div>
+
+  <div class="wcard" id="quranCard" hidden>
+    <h3 style="font-size:13px;font-weight:600;margin-bottom:4px">Quran verse check</h3>
+    <p class="stat-lbl" style="font-size:11.5px;margin-bottom:10px">Matched against the Tanzil Quran text (6,236 verses). Nothing is replaced without your approval. Matches below 75% are shown for review only.</p>
+    <div id="quranList"></div>
+  </div>
+
+  <div class="wcard settings">
+    <h3 style="font-size:13px;font-weight:600;margin-bottom:4px">Settings</h3>
+    <label>Word font <select id="fontSel"><option>Jameel Noori Nastaleeq</option></select></label>
+    <label>Latin digits (0-9) <input type="checkbox" id="optDigits"></label>
+    <label>Remove kashida <input type="checkbox" id="optKashida"></label>
+  </div>
+
+  <div class="exports">
+    <button class="btn btn-dark" id="btnDocx" disabled onclick="saveDocx()">Save as Word (.docx)</button>
+    <button class="btn btn-light" id="btnTxt" disabled onclick="saveTxt()">Save as text (.txt)</button>
+    <button class="btn btn-light" id="btnCopy" disabled onclick="copyOut()">Copy for Canva / Affinity</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+let lastResult = null;
+let queue = [];
+
+function api(){ return window.pywebview ? window.pywebview.api : mockApi; }
+function opts(){ return {latinDigits:document.getElementById('optDigits').checked,
+                         stripKashida:document.getElementById('optKashida').checked}; }
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+function setMode(){ document.getElementById('srcInput').focus(); }
+
+/* ---- paste conversion (live) ---- */
+let debounce;
+document.getElementById('srcInput').addEventListener('input', e=>{
+  clearTimeout(debounce);
+  debounce = setTimeout(()=>{
+    const v = e.target.value;
+    if(!v.trim()){ return; }
+    api().convert_pasted(v, opts()).then(showResult);
+  }, 350);
+});
+
+/* ---- files / folder ---- */
+async function openFiles(){
+  const paths = await api().pick_files();
+  if(paths.length) runQueue(paths);
+}
+async function openFolder(){
+  const paths = await api().pick_folder();
+  if(!paths.length){ toast('No .txt files found in that folder'); return; }
+  runQueue(paths);
+}
+async function runQueue(paths){
+  queue = [];
+  const wrap = document.getElementById('queueWrap');
+  const grid = document.getElementById('queueGrid');
+  wrap.hidden = false; grid.innerHTML = '';
+  document.getElementById('statusChip').textContent = 'Converting…';
+  for(let i=0;i<paths.length;i++){
+    const res = await api().convert_file(paths[i], opts());
+    queue.push({path:paths[i], res});
+    const b = document.createElement('button');
+    b.className = 'qcard c'+(i%4);
+    const name = paths[i].split(/[\\/]/).pop();
+    b.innerHTML = `<div class="top"><span class="badge">${res.unmapped?('⚠ '+res.unmapped+' unmapped'):'✓ clean'}</span></div>
+      <div class="fname">${name}</div><div class="meta">${res.chars.toLocaleString()} characters</div>`;
+    b.onclick = ()=>showResult(res);
+    grid.appendChild(b);
+    if(i===0) showResult(res);
+  }
+  document.getElementById('statusChip').textContent = 'Done';
+}
+
+/* ---- result rendering ---- */
+function showResult(res){
+  lastResult = res;
+  const box = document.getElementById('resultBox');
+  box.classList.remove('empty');
+  box.textContent = res.text.length > 20000 ? res.text.slice(0,20000)+' …' : res.text;
+  document.getElementById('outBadge').textContent = res.chars.toLocaleString()+' chars';
+  document.getElementById('statChars').textContent = res.chars.toLocaleString();
+  document.getElementById('statUnmapped').textContent = res.unmapped;
+  const chip = document.getElementById('statusChip');
+  chip.textContent = res.unmapped ? res.report.length+' codes need review' : 'Clean conversion';
+  chip.className = res.unmapped ? 'okchip warnchip' : 'okchip';
+  ['btnDocx','btnTxt','btnCopy','btnSpell','btnQuran'].forEach(id=>document.getElementById(id).disabled=false);
+  renderReport(res.report);
+}
+
+function renderReport(report){
+  const list = document.getElementById('repList');
+  document.getElementById('repEmpty').style.display = report.length ? 'none':'block';
+  list.innerHTML = '';
+  report.forEach(e=>{
+    const d = document.createElement('div');
+    d.className = 'rep-item';
+    d.innerHTML = `<span class="cnt">×${e.count}</span><span class="code">${e.code}</span>
+      <div class="ctx">${e.contexts[0]||''}</div>
+      <div class="fixrow"><input placeholder="Correct character(s)…" aria-label="Replacement for ${e.code}">
+      <button class="apply">Apply</button></div>`;
+    d.querySelector('.apply').onclick = async ()=>{
+      const val = d.querySelector('input').value;
+      if(!val){ toast('Type the replacement first'); return; }
+      await api().add_mapping(e.code, val);
+      toast('Mapping saved — reconverting');
+      reconvert();
+    };
+    list.appendChild(d);
+  });
+}
+
+async function reconvert(){
+  const v = document.getElementById('srcInput').value;
+  if(v.trim()){ showResult(await api().convert_pasted(v, opts())); }
+  else if(queue.length){ runQueue(queue.map(q=>q.path)); }
+}
+document.getElementById('optDigits').onchange = reconvert;
+document.getElementById('optKashida').onchange = reconvert;
+
+/* ---- spelling + quran + clear ---- */
+async function runSpelling(){
+  const r = await api().fix_spelling(lastResult.text);
+  lastResult.text = r.text;
+  refreshResultBox();
+  if(!r.changes.length){ toast('No spelling artifacts found'); return; }
+  const total = r.changes.reduce((a,c)=>a+c.count,0);
+  toast(total.toLocaleString()+' fixes applied: '+r.changes.map(c=>c.rule+' ×'+c.count).join(', '));
+}
+
+async function runQuran(){
+  toast('Checking against Quran text…');
+  const r = await api().quran_scan(lastResult.text);
+  const card = document.getElementById('quranCard');
+  const list = document.getElementById('quranList');
+  card.hidden = false; list.innerHTML = '';
+  if(!r.count){ list.innerHTML = '<p class="stat-lbl" style="font-size:12px">No Quranic quotations detected.</p>'; return; }
+  r.matches.forEach(m=>{
+    const strong = m.similarity >= 0.75;
+    const d = document.createElement('div');
+    d.className = 'q-item' + (strong ? '' : ' partial');
+    d.innerHTML = `<span class="sim">${Math.round(m.similarity*100)}%</span>
+      <span class="ref">${m.surah_no}:${m.ayah} · ${m.surah_name}</span>
+      <div class="lbl">In document</div><div class="ar">${m.found}</div>
+      <div class="lbl">Tanzil text</div><div class="ar">${m.verified}</div>`;
+    if(strong){
+      const b = document.createElement('button');
+      b.className = 'qapply'; b.textContent = 'Replace with Tanzil text';
+      b.onclick = ()=>{
+        if(!lastResult.text.includes(m.found)){ toast('Passage changed since scan — run the check again'); return; }
+        lastResult.text = lastResult.text.replace(m.found, m.verified);
+        api().set_text(lastResult.text);
+        refreshResultBox();
+        b.textContent = 'Replaced'; b.disabled = true;
+        toast('Replaced with '+m.surah_no+':'+m.ayah);
+      };
+      d.appendChild(b);
+    } else {
+      const note = document.createElement('div');
+      note.className = 'lbl'; note.textContent = 'Partial or mixed quote — review by hand';
+      d.appendChild(note);
+    }
+    list.appendChild(d);
+  });
+  toast(r.count+' Quranic passages matched');
+}
+
+function refreshResultBox(){
+  const box = document.getElementById('resultBox');
+  box.textContent = lastResult.text.length > 20000 ? lastResult.text.slice(0,20000)+' …' : lastResult.text;
+  document.getElementById('statChars').textContent = lastResult.text.length.toLocaleString();
+}
+
+function clearAll(){
+  lastResult = null; queue = [];
+  document.getElementById('srcInput').value = '';
+  const box = document.getElementById('resultBox');
+  box.classList.add('empty'); box.textContent = 'Converted text appears here';
+  document.getElementById('outBadge').textContent = '–';
+  document.getElementById('statChars').textContent = '0';
+  document.getElementById('statUnmapped').textContent = '0';
+  document.getElementById('statusChip').textContent = 'Ready';
+  document.getElementById('statusChip').className = 'okchip';
+  document.getElementById('repList').innerHTML = '';
+  document.getElementById('repEmpty').style.display = 'block';
+  document.getElementById('quranCard').hidden = true;
+  document.getElementById('queueWrap').hidden = true;
+  document.getElementById('queueGrid').innerHTML = '';
+  ['btnDocx','btnTxt','btnCopy','btnSpell','btnQuran'].forEach(id=>document.getElementById(id).disabled=true);
+}
+
+/* ---- export ---- */
+async function saveTxt(){
+  const r = await api().save_txt(lastResult.text);
+  if(r.ok) toast('Saved: '+r.path);
+}
+async function saveDocx(){
+  const font = document.getElementById('fontSel').value;
+  const r = await api().save_docx(lastResult.text, font);
+  toast(r.ok ? 'Saved: '+r.path : (r.error||'Not saved'));
+}
+function copyOut(){
+  navigator.clipboard.writeText(lastResult.text)
+    .then(()=>toast('Copied — paste into Canva or Affinity'));
+}
+
+/* ---- populate fonts ---- */
+window.addEventListener('pywebviewready', async ()=>{
+  const fonts = await api().list_fonts();
+  const sel = document.getElementById('fontSel');
+  sel.innerHTML = '';
+  const preferred = ['Jameel Noori Nastaleeq','Noto Nastaliq Urdu','Urdu Typesetting'];
+  const ordered = [...preferred.filter(f=>fonts.includes(f)), ...fonts.filter(f=>!preferred.includes(f))];
+  (ordered.length?ordered:preferred).forEach(f=>{
+    const o = document.createElement('option'); o.textContent = f; sel.appendChild(o);
+  });
+});
+
+/* ---- mock API so the UI can be previewed in a plain browser ---- */
+const mockApi = {
+  convert_pasted: async t => ({text:'بسم اللہ الرحمٰن الرحیم — نمونہ متن', chars:34, unmapped:3,
+    report:[{code:'0x04 0xE2',char:'â',count:268,contexts:['یک حرفی ہیں۔ (1)صٓ â سورۃ ص']},
+            {code:'0x04 0xE1',char:'á',count:265,contexts:['(2) قٓ â سورۃ ق á']}]}),
+  convert_file: async p => mockApi.convert_pasted(),
+  pick_files: async () => ['C:\\book\\Para_1.TXT','C:\\book\\Para_2.TXT','C:\\book\\Para_3.TXT'],
+  pick_folder: async () => [],
+  add_mapping: async () => ({ok:true}),
+  save_txt: async () => ({ok:true,path:'C:\\out.txt'}),
+  save_docx: async () => ({ok:true,path:'C:\\out.docx'}),
+  list_fonts: async () => ['Jameel Noori Nastaleeq','Urdu Typesetting','Arial'],
+  fix_spelling: async t => ({text:t.replace(/ء(?=[ا-ے])/g,'ئ'), changes:[{rule:'hamza_join',description:'',count:3}]}),
+  quran_scan: async () => ({count:2, matches:[
+    {found:'خَتَمَ اللّٰہُ عَلٰی قُلُوْبِھِمْ وَعَلٰی سَمْعِھِمْ', surah_no:2, surah_name:'البقرة', ayah:7, verified:'خَتَمَ ٱللَّهُ عَلَىٰ قُلُوبِهِمۡ وَعَلَىٰ سَمۡعِهِمۡۖ', similarity:0.98},
+    {found:'خَتَمَ اللّٰہُ عَلٰی قُلُوْبِہِمْ کی وجہ', surah_no:2, surah_name:'البقرة', ayah:7, verified:'خَتَمَ ٱللَّهُ عَلَىٰ قُلُوبِهِمۡ', similarity:0.6}]}),
+  set_text: async () => ({ok:true}),
+};
+</script>
+</body>
+</html>
