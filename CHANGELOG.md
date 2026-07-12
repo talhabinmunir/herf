@@ -2,6 +2,19 @@
 
 All notable changes to Herf are documented here. Dates are in YYYY-MM-DD format.
 
+## [1.2.0] - 2026-07-12
+
+### Added
+
+- Inline (run-level) styling in Word export. Bold spans and inline size changes within a paragraph — e.g. the bold muqatta'at letters inside list entries, inline 14 pt numerals — are now carried into .docx as separate runs instead of being flattened to the paragraph's dominant style. Conversion is done segment-by-segment with a proof-of-equality check against the whole-paragraph conversion; any paragraph where segmenting would alter the converted text falls back to paragraph-level styling rather than risk changing output.
+- A combining mark (e.g. madda) that InPage stores in the run after its base letter is reattached to the base letter's run, since Word renders a leading orphaned mark detached from its base.
+
+### Verified against the reference file
+
+- Converted text remains byte-identical to the pre-styling pipeline; 0 unmapped codes.
+- 171 bold runs recovered (sizes 20/22/24 pt); the "ام الکتاب" heading is confirmed NOT bold in the source data (no bold flag in its style run, and InPage's own PDF export carries no bold bit for it) — it is distinguished by its 30 pt size alone.
+- Paragraph space-before/space-after: no such records could be located in the InPage100 stream (the remaining undecoded sections are page/frame layout structures). Vertical gaps in this document come from blank paragraphs, which are preserved and sized. No spacing values are invented.
+
 ## [1.1.0] - 2026-07-12
 
 ### Added

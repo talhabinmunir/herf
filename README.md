@@ -24,7 +24,7 @@ Version history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Known limits
 
-- Converts text content and per-paragraph character styling (font size, bold) — page layout, frames, and images are not recreated. Styling is applied per paragraph from the dominant style run; inline style changes within a paragraph are flattened. Pasted text and .txt exports carry no style data, so only .inp input gets styled Word export.
+- Converts text content and character styling (font size, bold, including inline spans within a paragraph) — page layout, frames, and images are not recreated. Where converting a paragraph segment-by-segment would alter the text, that paragraph falls back to its dominant style. Pasted text and .txt exports carry no style data, so only .inp input gets styled Word export. Paragraph spacing attributes are not stored per paragraph in the format (gaps come from blank paragraphs, which are preserved).
 - The .inp parser's structure rules (paragraph mark = CR + 4 bytes, junk-region threshold) were derived from one real InPage 2016 file. Files from other InPage versions may behave differently; anything the parser is unsure of lands in the unmapped report rather than being guessed.
 - Additional text regions in a document (text frames, footnotes) are appended after the main story, separated by a blank line, in stream order — not in visual page order.
 - The UI loads the Poppins font from Google Fonts when online; offline it falls back to Segoe UI. Conversion itself works fully offline.

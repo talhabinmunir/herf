@@ -47,6 +47,8 @@ import olefile
 
 _UNDEFINED = {0x81, 0x8D, 0x8F, 0x90, 0x9D}
 
+MARKER = ""                     # intermediate-form marker prefix
+
 
 def _b2c(b: int) -> str:
     return chr(b) if b in _UNDEFINED else bytes([b]).decode("cp1252")
@@ -152,9 +154,15 @@ def extract_document(path: str, junk_limit: int = 16,
       styles — parallel list: styles[b][p] belongs to paragraph p of
         blocks[b] (i.e. blocks[b].split("\\n")[p]) and is either None
         (no style recovered — never guessed) or
-        {'size': pt|None, 'bold': bool, 'coverage': 0.0-1.0} where
+        {'size': pt|None, 'bold': bool, 'coverage': 0.0-1.0,
+         'runs': [(char_len, size, bold), ...] | None} where
         coverage is the fraction of the paragraph's bytes the dominant
-        (size, bold) run combination actually spans.
+        (size, bold) run combination actually spans, and runs carves
+        the paragraph's intermediate text into consecutive style
+        segments (inline bold spans, inline size changes). runs is
+        None when the byte-to-character mapping for that paragraph is
+        not exact (stray structure bytes) or a covering run failed to
+        parse — the paragraph-level dominant style still applies.
     """
     ole = olefile.OleFileIO(path)
     try:
@@ -166,10 +174,12 @@ def extract_document(path: str, junk_limit: int = 16,
 
     n = len(data)
     blocks: list[str] = []
-    para_bytes: list[list[int]] = []    # per block, per paragraph: counted bytes
+    # per block, per paragraph: (counted_bytes, intermediate_chars, has_cr)
+    para_info: list[list[tuple[int, int, bool]]] = []
     buf: list[str] = []
-    cur_paras: list[int] = []
+    cur_paras: list[tuple[int, int, bool]] = []
     cur_bytes = 0                       # counted bytes of paragraph in progress
+    cur_chars = 0                       # intermediate chars of same paragraph
     text_end = -1                       # just past last CR + 4 link bytes
     i = _find_long_run(data, 0)
     if i == -1:
@@ -177,13 +187,14 @@ def extract_document(path: str, junk_limit: int = 16,
     junk = 0
 
     def close_block():
-        nonlocal buf, cur_paras, cur_bytes
+        nonlocal buf, cur_paras, cur_bytes, cur_chars
         if len(buf) >= min_block_chars:
             blocks.append("".join(buf))
-            para_bytes.append(cur_paras + [cur_bytes])
+            para_info.append(cur_paras + [(cur_bytes, cur_chars, False)])
         buf = []
         cur_paras = []
         cur_bytes = 0
+        cur_chars = 0
 
     while i < n:
         b = data[i]
@@ -191,11 +202,14 @@ def extract_document(path: str, junk_limit: int = 16,
             buf.append("" + _b2c(data[i + 1]))
             i += 2
             cur_bytes += 2
+            cur_chars += 2
             junk = 0
         elif b == 0x0D:                     # paragraph mark + 4 link bytes
             buf.append("\n")
-            cur_paras.append(cur_bytes + 1)  # +1: the CR itself is counted
+            # +1: the CR itself is counted in run byte space
+            cur_paras.append((cur_bytes + 1, cur_chars, True))
             cur_bytes = 0
+            cur_chars = 0
             i += 5
             text_end = i
             junk = 0
@@ -203,11 +217,13 @@ def extract_document(path: str, junk_limit: int = 16,
             buf.append("\t")
             i += 1
             cur_bytes += 1
+            cur_chars += 1
             junk = 0
         elif 0x20 <= b <= 0x7E:             # bare ASCII is literal text
             buf.append(chr(b))
             i += 1
             cur_bytes += 1
+            cur_chars += 1
             junk = 0
         else:
             junk += 1
@@ -228,15 +244,19 @@ def extract_document(path: str, junk_limit: int = 16,
     runs = _parse_style_runs(data, text_end) if text_end != -1 else []
 
     # Assign each paragraph the dominant style among the runs covering
-    # its byte span. Style stream position advances block by block in
-    # file order; paragraphs past the end of the run table get None.
+    # its byte span, plus the exact within-paragraph style segments
+    # where the byte-to-character mapping is provably 1:1. Style stream
+    # position advances block by block in file order; paragraphs past
+    # the end of the run table get None.
     styles: list[list[dict | None]] = []
     ri = 0                                  # current run index
     consumed = 0                            # bytes consumed of runs[ri]
-    for bi in range(len(para_bytes)):
+    for bi in range(len(para_info)):
         block_styles: list[dict | None] = []
-        for pb in para_bytes[bi]:
+        block_paras = blocks[bi].split("\n")
+        for pi, (pb, pchars, has_cr) in enumerate(para_info[bi]):
             agg: dict[tuple, int] = {}
+            pieces: list[tuple[int, dict | None]] = []  # (bytes, style)
             remaining = pb
             while remaining > 0 and ri < len(runs):
                 avail = runs[ri][0] - consumed
@@ -245,17 +265,56 @@ def extract_document(path: str, junk_limit: int = 16,
                 if st is not None:
                     key = (st["size"], st["bold"])
                     agg[key] = agg.get(key, 0) + take
+                pieces.append((take, st))
                 consumed += take
                 remaining -= take
                 if consumed >= runs[ri][0]:
                     ri += 1
                     consumed = 0
-            if agg and pb > 0:
-                (size, bold), covered = max(agg.items(), key=lambda kv: kv[1])
-                block_styles.append({"size": size, "bold": bold,
-                                     "coverage": covered / pb})
-            else:
+            if not (agg and pb > 0):
                 block_styles.append(None)
+                continue
+            (size, bold), covered = max(agg.items(), key=lambda kv: kv[1])
+            entry = {"size": size, "bold": bold, "coverage": covered / pb,
+                     "runs": None}
+            # Byte offsets equal character offsets only when every
+            # counted byte produced exactly one intermediate char
+            # (marker pair: 2 bytes -> 2 chars, ASCII/tab: 1 -> 1, the
+            # CR is the +1); stray bytes break that, so no run detail.
+            exact = (remaining == 0
+                     and pb == pchars + (1 if has_cr else 0)
+                     and all(st is not None for _, st in pieces))
+            if exact and pi < len(block_paras):
+                s = block_paras[pi]
+                # piece boundaries in char space; last piece absorbs
+                # the CR byte, so clamp the total to the char count
+                cuts = []
+                acc = 0
+                for blen, _ in pieces[:-1]:
+                    acc += blen
+                    cuts.append(min(acc, pchars))
+                # never split a marker pair: a boundary that lands on
+                # the pair's second byte moves back onto the marker
+                cuts = [c - 1 if 0 < c < len(s) and s[c - 1] == MARKER
+                        else c for c in cuts]
+                segs = []
+                prev = 0
+                for c in cuts + [pchars]:
+                    c = max(prev, c)
+                    segs.append((c - prev, pieces[len(segs)][1]))
+                    prev = c
+                merged: list[tuple[int, float | None, bool]] = []
+                for ln, st in segs:
+                    if ln == 0:
+                        continue
+                    key2 = (st["size"], st["bold"])
+                    if merged and (merged[-1][1], merged[-1][2]) == key2:
+                        merged[-1] = (merged[-1][0] + ln, key2[0], key2[1])
+                    else:
+                        merged.append((ln, key2[0], key2[1]))
+                if merged:
+                    entry["runs"] = merged
+            block_styles.append(entry)
         styles.append(block_styles)
     return blocks, styles
 

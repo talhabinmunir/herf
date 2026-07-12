@@ -77,3 +77,71 @@ def convert(text: str, user_mapping: dict | None = None,
 
 def convert_bytes(raw: bytes, **kwargs):
     return convert(decode_bytes(raw), **kwargs)
+
+
+def convert_segments(segments: list[str], user_mapping: dict | None = None,
+                     latin_digits: bool = False, strip_kashida: bool = False):
+    """Convert one paragraph that is split into style segments, keeping
+    the segment boundaries through conversion.
+
+    Returns (pieces, text, report). text and report are exactly what
+    convert("".join(segments)) produces — that whole-paragraph result
+    stays authoritative. pieces is a list of strings, one per input
+    segment, whose concatenation equals text; it is None when applying
+    the rules segment-by-segment did not reproduce the whole-paragraph
+    result (a mapping rule spanned a segment boundary), in which case
+    the caller should fall back to unsegmented styling rather than
+    risk changing the converted text.
+    """
+    joined = "".join(segments)
+    whole, report = convert(joined, user_mapping=user_mapping,
+                            latin_digits=latin_digits,
+                            strip_kashida=strip_kashida)
+
+    digit_map = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
+    parts = []
+    for seg in segments:
+        t = seg
+        if user_mapping:
+            for k in sorted(user_mapping.keys(), key=len, reverse=True):
+                if k in t:
+                    t = t.replace(k, user_mapping[k])
+        for k, v in ITU_RULES:
+            if k in t:
+                t = t.replace(k, v)
+        t = t.replace(MARKER, " ")
+        if latin_digits:
+            t = t.translate(digit_map)
+        if strip_kashida:
+            t = t.replace("ـ", "")
+        parts.append(t)
+
+    # Re-apply convert()'s whitespace normalization (collapse runs of
+    # space/tab, strip the paragraph edges) across the concatenation
+    # while tracking where each segment ends.
+    out: list[str] = []
+    bounds: list[int] = []
+    prev_space = False
+    for t in parts:
+        for ch in t:
+            if ch in " \t":
+                if prev_space or not out:
+                    continue
+                out.append(" ")
+                prev_space = True
+            else:
+                out.append(ch)
+                prev_space = False
+        bounds.append(len(out))
+    while out and out[-1] == " ":
+        out.pop()
+    bounds = [min(b, len(out)) for b in bounds]
+    final = "".join(out)
+    if final != whole:
+        return None, whole, report
+    pieces = []
+    start = 0
+    for b in bounds:
+        pieces.append(final[start:b])
+        start = b
+    return pieces, whole, report

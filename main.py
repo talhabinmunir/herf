@@ -7,9 +7,11 @@ All processing is local. No file content leaves this machine.
 import json
 import os
 import sys
+import unicodedata
+
 import webview
 
-from herf.engine import convert_bytes, convert, decode_bytes
+from herf.engine import convert_bytes, convert, convert_segments, decode_bytes
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -55,10 +57,52 @@ class Api:
                 paras = blk.split("\n")
                 pstyles = block_styles[bi]
                 for j, para in enumerate(paras):
-                    t, rep = convert(para, **kw)
                     st = pstyles[j] if j < len(pstyles) else None
+                    run_spec = st.get("runs") if st else None
+                    line_runs = None
+                    if run_spec and len(run_spec) > 1:
+                        # inline style changes: convert segment-wise,
+                        # falling back if that would alter the text
+                        segs, pos = [], 0
+                        for ln, _, _ in run_spec:
+                            segs.append(para[pos:pos + ln])
+                            pos += ln
+                        pieces, t, rep = convert_segments(segs, **kw)
+                        if pieces is not None:
+                            # A combining mark must live in the same
+                            # docx run as its base letter or Word
+                            # renders it detached (InPage stores e.g. a
+                            # bold letter with its madda in the next,
+                            # non-bold run). Reattach leading marks to
+                            # the preceding piece.
+                            texts = list(pieces)
+                            for k2 in range(1, len(texts)):
+                                m = 0
+                                while (m < len(texts[k2]) and
+                                       unicodedata.category(texts[k2][m]) == "Mn"):
+                                    m += 1
+                                if m:
+                                    prev = k2 - 1
+                                    while prev >= 0 and not texts[prev]:
+                                        prev -= 1
+                                    if prev >= 0:
+                                        texts[prev] += texts[k2][:m]
+                                        texts[k2] = texts[k2][m:]
+                            line_runs = []
+                            for txt, (_, sz, bd) in zip(texts, run_spec):
+                                if not txt:
+                                    continue
+                                if line_runs and (line_runs[-1]["size"],
+                                                  line_runs[-1]["bold"]) == (sz, bd):
+                                    line_runs[-1]["text"] += txt
+                                else:
+                                    line_runs.append({"text": txt,
+                                                      "size": sz, "bold": bd})
+                    else:
+                        t, rep = convert(para, **kw)
                     lines.append(t)
-                    styles.append({"size": st["size"], "bold": st["bold"]}
+                    styles.append({"size": st["size"], "bold": st["bold"],
+                                   "runs": line_runs}
                                   if st else None)
                     for e in rep:
                         m = merged.setdefault(e["code"], e)
@@ -190,6 +234,27 @@ class Api:
         if not styles or len(styles) != len(lines):
             styles = None
 
+        def add_run(p, run_text, size, bold):
+            run = p.add_run(run_text)
+            run.font.name = font_name
+            run.font.size = Pt(size)
+            if bold:
+                run.font.bold = True
+            rPr = run._r.get_or_add_rPr()
+            rtl = OxmlElement("w:rtl")
+            rPr.append(rtl)
+            cs = OxmlElement("w:szCs")
+            cs.set(qn("w:val"), str(int(size * 2)))
+            rPr.append(cs)
+            if bold:                        # bold for complex scripts too
+                bCs = OxmlElement("w:bCs")
+                rPr.append(bCs)
+            rFonts = rPr.find(qn("w:rFonts"))
+            if rFonts is None:
+                rFonts = OxmlElement("w:rFonts")
+                rPr.append(rFonts)
+            rFonts.set(qn("w:cs"), font_name)
+
         doc = Document()
         for idx, para_text in enumerate(lines):
             st = styles[idx] if styles else None
@@ -214,25 +279,15 @@ class Api:
                     mark_rPr.append(el)
                 pPr.insert(0, mark_rPr)
                 continue
-            run = p.add_run(para_text)
-            run.font.name = font_name
-            run.font.size = Pt(size)
-            if bold:
-                run.font.bold = True
-            rPr = run._r.get_or_add_rPr()
-            rtl = OxmlElement("w:rtl")
-            rPr.append(rtl)
-            cs = OxmlElement("w:szCs")
-            cs.set(qn("w:val"), str(int(size * 2)))
-            rPr.append(cs)
-            if bold:                        # bold for complex scripts too
-                bCs = OxmlElement("w:bCs")
-                rPr.append(bCs)
-            rFonts = rPr.find(qn("w:rFonts"))
-            if rFonts is None:
-                rFonts = OxmlElement("w:rFonts")
-                rPr.append(rFonts)
-            rFonts.set(qn("w:cs"), font_name)
+            # inline style runs, only while they still add up to the
+            # exact paragraph text being saved
+            line_runs = st.get("runs") if st else None
+            if line_runs and "".join(r["text"] for r in line_runs) == para_text:
+                for r in line_runs:
+                    add_run(p, r["text"],
+                            r["size"] if r["size"] else 14, bool(r["bold"]))
+            else:
+                add_run(p, para_text, size, bold)
         doc.save(path)
         return {"ok": True, "path": path}
 
