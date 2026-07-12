@@ -18,6 +18,12 @@ class Api:
     def __init__(self):
         self.user_mapping = {}
         self.last_text = ""
+        # Per-line styles for the last .inp conversion, aligned with
+        # last_text.split("\n"). Each entry is {"size": pt|None,
+        # "bold": bool} or None (nothing recovered for that line).
+        # None as a whole means the current text has no style data
+        # (pasted text, .txt files) — export falls back to flat 14pt.
+        self.last_styles = None
 
     # ---------- conversion ----------
 
@@ -31,21 +37,48 @@ class Api:
         return self._run(raw, opts)
 
     def convert_file(self, path, opts):
-        from herf.inp_reader import is_inp, extract_intermediate
+        from herf.inp_reader import is_inp, extract_document
         if path.lower().endswith(".inp") or is_inp(path):
-            blocks = extract_intermediate(path)
-            # main story first; any extra text regions appended, separated
-            intermediate = "\n\n".join(blocks)
-            text, report = convert(
-                intermediate,
-                user_mapping=self.user_mapping,
-                latin_digits=opts.get("latinDigits", False),
-                strip_kashida=opts.get("stripKashida", False),
-            )
+            blocks, block_styles = extract_document(path)
+            kw = dict(user_mapping=self.user_mapping,
+                      latin_digits=opts.get("latinDigits", False),
+                      strip_kashida=opts.get("stripKashida", False))
+            # Convert paragraph-by-paragraph so each output line keeps
+            # its recovered style. Verified byte-identical to whole-text
+            # conversion on the reference file (rules never span a
+            # paragraph mark). Reports are merged across paragraphs.
+            lines, styles, merged = [], [], {}
+            for bi, blk in enumerate(blocks):
+                if bi:                       # blocks joined by a blank line
+                    lines.append("")
+                    styles.append(None)
+                paras = blk.split("\n")
+                pstyles = block_styles[bi]
+                for j, para in enumerate(paras):
+                    t, rep = convert(para, **kw)
+                    st = pstyles[j] if j < len(pstyles) else None
+                    lines.append(t)
+                    styles.append({"size": st["size"], "bold": st["bold"]}
+                                  if st else None)
+                    for e in rep:
+                        m = merged.setdefault(e["code"], e)
+                        if m is not e:
+                            m["count"] += e["count"]
+                            m["contexts"] = (m["contexts"] + e["contexts"])[:5]
+            # whole-text convert() strips leading/trailing blank lines;
+            # mirror that so behavior and alignment stay identical
+            while lines and not lines[0].strip():
+                lines.pop(0); styles.pop(0)
+            while lines and not lines[-1].strip():
+                lines.pop(); styles.pop()
+            text = "\n".join(lines)
+            report = sorted(merged.values(), key=lambda e: -e["count"])
             self.last_text = text
+            self.last_styles = styles
             return {"text": text, "report": report, "chars": len(text),
                     "unmapped": sum(e["count"] for e in report),
-                    "blocks": len(blocks), "source": "inp"}
+                    "blocks": len(blocks), "source": "inp",
+                    "styled": sum(1 for s in styles if s)}
         with open(path, "rb") as f:
             raw = f.read()
         return self._run(raw, opts)
@@ -58,6 +91,7 @@ class Api:
             strip_kashida=opts.get("stripKashida", False),
         )
         self.last_text = text
+        self.last_styles = None      # pasted/.txt input carries no style data
         return {"text": text, "report": report,
                 "chars": len(text), "unmapped": sum(e["count"] for e in report)}
 
@@ -148,25 +182,52 @@ class Api:
         if isinstance(path, (list, tuple)):
             path = path[0]
 
+        lines = text.split("\n")
+        # Recovered .inp styles apply only while they still line up with
+        # the text being saved; after freehand edits they are dropped
+        # rather than mis-applied.
+        styles = self.last_styles
+        if not styles or len(styles) != len(lines):
+            styles = None
+
         doc = Document()
-        for para_text in text.split("\n"):
-            if not para_text.strip():
+        for idx, para_text in enumerate(lines):
+            st = styles[idx] if styles else None
+            if not para_text.strip() and styles is None:
+                # legacy flat export: skip blanks (no styling to keep)
                 continue
+            size = st["size"] if st and st["size"] else 14
+            bold = bool(st and st["bold"])
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             # RTL paragraph direction
             pPr = p._p.get_or_add_pPr()
             bidi = OxmlElement("w:bidi")
             pPr.append(bidi)
+            if not para_text.strip():
+                # blank spacer paragraph from the source: keep it, and
+                # size the paragraph mark so the gap height matches
+                mark_rPr = OxmlElement("w:rPr")
+                for tag in ("w:sz", "w:szCs"):
+                    el = OxmlElement(tag)
+                    el.set(qn("w:val"), str(int(size * 2)))
+                    mark_rPr.append(el)
+                pPr.insert(0, mark_rPr)
+                continue
             run = p.add_run(para_text)
             run.font.name = font_name
-            run.font.size = Pt(14)
+            run.font.size = Pt(size)
+            if bold:
+                run.font.bold = True
             rPr = run._r.get_or_add_rPr()
             rtl = OxmlElement("w:rtl")
             rPr.append(rtl)
             cs = OxmlElement("w:szCs")
-            cs.set(qn("w:val"), "28")
+            cs.set(qn("w:val"), str(int(size * 2)))
             rPr.append(cs)
+            if bold:                        # bold for complex scripts too
+                bCs = OxmlElement("w:bCs")
+                rPr.append(bCs)
             rFonts = rPr.find(qn("w:rFonts"))
             if rFonts is None:
                 rFonts = OxmlElement("w:rFonts")
